@@ -15,18 +15,19 @@ from sklearn.metrics import roc_auc_score
 
 from classes.dataset import ChestXrayDataSet
 from classes.densenet import DenseNet121
+from collections import OrderedDict
 
 
 N_CLASSES = 14
 
-CKPT_PATH = '/home/smirnvla/PycharmProjects/pytorch-chexnet/classes/model.pth.tar'
+CKPT_PATH = '/Users/Nilanj/Documents/comp/pytorch-django-chexnet/classes/model.pth.tar'
 
 CLASS_NAMES = ['Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 'Pneumonia',
                'Pneumothorax', 'Consolidation', 'Edema', 'Emphysema', 'Fibrosis', 'Pleural_Thickening', 'Hernia']
 
-DATA_DIR = '/home/smirnvla/PycharmProjects/pytorch-chexnet/chestx-ray-data/images'
+DATA_DIR = '/Users/Nilanj/Documents/comp/pytorch-django-chexnet/chestx-ray-data/images'
 
-TEST_IMAGE_LIST = '/home/smirnvla/PycharmProjects/pytorch-chexnet/chestx-ray-data/labels/short_test_list.txt'
+TEST_IMAGE_LIST = '/Users/Nilanj/Documents/comp/pytorch-django-chexnet/chestx-ray-data/labels/short_test_list.txt'
 
 BATCH_SIZE = 64
 
@@ -54,14 +55,28 @@ def process(image_list=None, auroc=False):
     torch.backends.cudnn.benchmark = True
 
     # initialize and load the model
-    model = DenseNet121(N_CLASSES).cuda()
+    model = DenseNet121(N_CLASSES)
+    # print("model",model)
     model = torch.nn.DataParallel(model, device_ids=[0])
     # model = torch.backends.cudnn.convert(model, torch.nn)
 
     if os.path.isfile(CKPT_PATH):
-        print("=> loading checkpoint")
-        checkpoint = torch.load(CKPT_PATH)
-        model.load_state_dict(checkpoint['state_dict'])
+        # print("=> loading checkpoint")
+        checkpoint = torch.load(CKPT_PATH, map_location="cpu")
+
+        # print("checkpoint",len(checkpoint['state_dict']))
+
+        state_dict = checkpoint['state_dict']
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            name = k.replace("module.","") # remove 'module.' of DataParallel
+            # print(k,v[0:1][0])
+            if name:
+                print("name",name)
+                new_state_dict[name] = v
+
+
+        model.load_state_dict(new_state_dict,strict=False)
         print("=> loaded checkpoint")
     else:
         print("=> no checkpoint found")
@@ -70,8 +85,11 @@ def process(image_list=None, auroc=False):
                                               shuffle=False, num_workers=8, pin_memory=True)
 
     # initialize the ground truth and output tensor
+    print("test_loader",test_loader)
     gt = torch.FloatTensor()
+    print("gt",gt)
     gt = gt.cuda()
+
     pred = torch.FloatTensor()
     pred = pred.cuda()
 
